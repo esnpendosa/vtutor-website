@@ -880,9 +880,9 @@
     </div>
 
     <!-- API Status -->
-    <div class="api-status connecting" id="api-status">
+    <div class="api-status disconnected" id="api-status">
         <div class="api-status-dot"></div>
-        <span>Menghubungkan ke AI...</span>
+        <span>Mode Offline</span>
     </div>
 
     <!-- Loading Overlay -->
@@ -940,7 +940,7 @@
             <div class="setting-item">
                 <div class="setting-label">Mode AI</div>
                 <label class="toggle-switch">
-                    <input type="checkbox" id="ai-mode-toggle">
+                    <input type="checkbox" id="ai-mode-toggle" disabled>
                     <span class="slider"></span>
                 </label>
             </div>
@@ -1047,7 +1047,6 @@
                     <li>Efek suara dan musik yang menyenangkan</li>
                     <li>Fitur petunjuk ketika kesulitan</li>
                     <li>Animasi dan visual yang menarik</li>
-                    <li>Dukungan AI canggih untuk interaksi lebih natural</li>
                 </ul>
                 
                 <p>Cara bermain:</p>
@@ -1124,15 +1123,10 @@
             gamesPlayed: 0,
             gamesWon: 0,
             winStreak: 0,
-            apiConnected: false,
             lastGuess: null,
-            aiMode: true,
-            apiKey: "sk-1234567890", // Ganti dengan API key yang valid
-            apiEndpoint: "https://api.openai.com/v1/chat/completions",
-            proxyUrl: "" // Tidak menggunakan proxy untuk demo
+            aiMode: false
         };
 
-        // Menggunakan API lokal sebagai fallback
         const LOCAL_API_RESPONSES = {
             greetings: [
                 "Hai! Aku Cici. Ayo main tebak angka!",
@@ -1184,18 +1178,13 @@
         };
 
         const elements = {
-            // Navigation
             gameBtn: document.getElementById('game-btn'),
             statsBtn: document.getElementById('stats-btn'),
             aboutBtn: document.getElementById('about-btn'),
             settingsBtn: document.getElementById('settings-btn'),
-            
-            // Main sections
             gameSection: document.getElementById('game-section'),
             statsSection: document.getElementById('stats-section'),
             aboutSection: document.getElementById('about-section'),
-            
-            // Game elements
             guessInput: document.getElementById('guess-input'),
             guessBtn: document.getElementById('guess-btn'),
             hintBtn: document.getElementById('hint-btn'),
@@ -1206,15 +1195,11 @@
             bestScoreDisplay: document.getElementById('best-score'),
             difficultyIndicator: document.getElementById('difficulty-indicator'),
             lastGuessDisplay: document.getElementById('last-guess'),
-            
-            // Stats elements
             totalGamesDisplay: document.getElementById('total-games'),
             gamesWonDisplay: document.getElementById('games-won'),
             bestAttemptDisplay: document.getElementById('best-attempt'),
             currentStreakDisplay: document.getElementById('current-streak'),
             winRateDisplay: document.getElementById('win-rate'),
-            
-            // AI elements
             aiCharacter: document.getElementById('ai-character'),
             speechBubble: document.getElementById('speech-bubble'),
             mouthAnimated: document.getElementById('mouth-animated'),
@@ -1224,14 +1209,10 @@
             assistantMessages: document.getElementById('assistant-messages'),
             assistantInput: document.getElementById('assistant-input'),
             assistantSend: document.getElementById('assistant-send'),
-            
-            // Audio elements
             bgMusic: document.getElementById('bg-music'),
             winSound: document.getElementById('win-sound'),
             loseSound: document.getElementById('lose-sound'),
             clickSound: document.getElementById('click-sound'),
-            
-            // Settings elements
             settingsPanel: document.getElementById('settings-panel'),
             settingsClose: document.getElementById('settings-close'),
             settingsOverlay: document.getElementById('settings-overlay'),
@@ -1241,8 +1222,6 @@
             soundEffectsToggle: document.getElementById('sound-effects-toggle'),
             hardModeToggle: document.getElementById('hard-mode-toggle'),
             aiModeToggle: document.getElementById('ai-mode-toggle'),
-            
-            // Other elements
             loadingOverlay: document.getElementById('loading-overlay'),
             apiStatus: document.getElementById('api-status'),
             confettiContainer: document.getElementById('confetti-container')
@@ -1251,20 +1230,13 @@
         const synth = window.speechSynthesis;
         let voices = [];
 
-        // Initialize game when DOM is loaded
         document.addEventListener('DOMContentLoaded', initGame);
 
-        async function initGame() {
-            // Add event listeners first so user can interact with the game
+        function initGame() {
             setupEventListeners();
-            
-            // Then load game state
             loadGameState();
-            
-            // Generate secret number and show greeting
             generateSecretNumber();
             
-            // Show greeting message
             const greeting = getRandomResponse('greetings');
             showMessage(greeting);
             speak(greeting);
@@ -1272,23 +1244,57 @@
             updateUIMode();
             updateStatsDisplay();
             
-            // Hide loading overlay after everything is ready
             setTimeout(() => {
                 elements.loadingOverlay.style.display = 'none';
             }, 1000);
             
-            // Load voices for speech synthesis
             if (synth.onvoiceschanged !== undefined) {
                 synth.onvoiceschanged = loadVoices;
             }
             loadVoices();
         }
 
+        function setupEventListeners() {
+            elements.guessBtn.addEventListener('click', checkGuess);
+            elements.hintBtn.addEventListener('click', giveHint);
+            elements.newGameBtn.addEventListener('click', startNewGame);
+            elements.guessInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') checkGuess();
+            });
+            
+            elements.aiCharacter.addEventListener('click', function() {
+                if (gameState.aiSpeaking) return;
+                const randomMsg = getRandomResponse('assistant');
+                speak(randomMsg);
+            });
+
+            elements.aiCharacter.addEventListener('dblclick', toggleAssistantPanel);
+            elements.assistantClose.addEventListener('click', toggleAssistantPanel);
+            elements.assistantSend.addEventListener('click', sendAssistantMessage);
+            elements.assistantInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendAssistantMessage();
+            });
+
+            elements.settingsBtn.addEventListener('click', toggleSettingsPanel);
+            elements.settingsClose.addEventListener('click', toggleSettingsPanel);
+            elements.settingsOverlay.addEventListener('click', toggleSettingsPanel);
+            elements.saveSettingsBtn.addEventListener('click', saveSettings);
+
+            elements.gameBtn.addEventListener('click', () => switchTab('game'));
+            elements.statsBtn.addEventListener('click', () => switchTab('stats'));
+            elements.aboutBtn.addEventListener('click', () => switchTab('about'));
+            
+            document.addEventListener('click', function() {
+                if (gameState.musicEnabled && elements.bgMusic.paused) {
+                    elements.bgMusic.play().catch(e => console.log("Audio play blocked:", e));
+                }
+            }, { once: true });
+        }
+
         function getRandomResponse(type) {
             const responses = LOCAL_API_RESPONSES[type];
             if (!responses) return "";
             
-            // Replace placeholders for hint responses
             if (type === 'hint') {
                 const maxNumber = gameState.hardMode ? 200 : 100;
                 const midPoint = Math.floor(maxNumber / 2);
@@ -1313,48 +1319,6 @@
             return responses[Math.floor(Math.random() * responses.length)];
         }
 
-        function setupEventListeners() {
-            // Game controls
-            elements.guessBtn.addEventListener('click', checkGuess);
-            elements.hintBtn.addEventListener('click', giveHint);
-            elements.newGameBtn.addEventListener('click', startNewGame);
-            elements.guessInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') checkGuess();
-            });
-            
-            // AI assistant
-            elements.aiCharacter.addEventListener('click', function() {
-                if (gameState.aiSpeaking) return;
-                const randomMsg = getRandomResponse('assistant');
-                speak(randomMsg);
-            });
-
-            elements.aiCharacter.addEventListener('dblclick', toggleAssistantPanel);
-            elements.assistantClose.addEventListener('click', toggleAssistantPanel);
-            elements.assistantSend.addEventListener('click', sendAssistantMessage);
-            elements.assistantInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') sendAssistantMessage();
-            });
-
-            // Settings
-            elements.settingsBtn.addEventListener('click', toggleSettingsPanel);
-            elements.settingsClose.addEventListener('click', toggleSettingsPanel);
-            elements.settingsOverlay.addEventListener('click', toggleSettingsPanel);
-            elements.saveSettingsBtn.addEventListener('click', saveSettings);
-
-            // Navigation
-            elements.gameBtn.addEventListener('click', () => switchTab('game'));
-            elements.statsBtn.addEventListener('click', () => switchTab('stats'));
-            elements.aboutBtn.addEventListener('click', () => switchTab('about'));
-            
-            // Music toggle - allow user to enable audio
-            document.addEventListener('click', function() {
-                if (gameState.musicEnabled && elements.bgMusic.paused) {
-                    elements.bgMusic.play().catch(e => console.log("Audio play blocked:", e));
-                }
-            }, { once: true });
-        }
-
         function loadGameState() {
             if (localStorage.getItem('playerName')) {
                 gameState.playerName = localStorage.getItem('playerName');
@@ -1364,7 +1328,6 @@
                 gameState.bestScore = parseInt(localStorage.getItem('bestScore'));
                 gameState.bestScoreDate = localStorage.getItem('bestScoreDate');
                 gameState.bestScorePlayer = localStorage.getItem('bestScorePlayer') || gameState.playerName;
-                
                 elements.bestScoreDisplay.textContent = gameState.bestScore;
             }
             
@@ -1378,10 +1341,6 @@
             
             if (localStorage.getItem('hardMode') !== null) {
                 gameState.hardMode = localStorage.getItem('hardMode') === 'true';
-            }
-            
-            if (localStorage.getItem('aiMode') !== null) {
-                gameState.aiMode = localStorage.getItem('aiMode') === 'true';
             }
             
             if (localStorage.getItem('gamesPlayed')) {
@@ -1398,20 +1357,16 @@
             
             updateDifficultyIndicator();
             
-            // Update settings panel inputs
             elements.playerNameInput.value = gameState.playerName;
             elements.musicToggle.checked = gameState.musicEnabled;
             elements.soundEffectsToggle.checked = gameState.soundEffectsEnabled;
             elements.hardModeToggle.checked = gameState.hardMode;
             elements.aiModeToggle.checked = gameState.aiMode;
             
-            // Initialize music if enabled
             if (gameState.musicEnabled) {
                 elements.bgMusic.volume = 0.3;
-                // Don't autoplay - wait for user interaction
             }
             
-            // Initialize sound effects
             elements.winSound.volume = 0.5;
             elements.loseSound.volume = 0.5;
             elements.clickSound.volume = 0.3;
@@ -1595,19 +1550,16 @@
             const musicEnabled = elements.musicToggle.checked;
             const soundEffectsEnabled = elements.soundEffectsToggle.checked;
             const hardMode = elements.hardModeToggle.checked;
-            const aiMode = elements.aiModeToggle.checked;
             
             gameState.playerName = newName;
             gameState.musicEnabled = musicEnabled;
             gameState.soundEffectsEnabled = soundEffectsEnabled;
             gameState.hardMode = hardMode;
-            gameState.aiMode = aiMode;
             
             localStorage.setItem('playerName', newName);
             localStorage.setItem('musicEnabled', musicEnabled);
             localStorage.setItem('soundEffectsEnabled', soundEffectsEnabled);
             localStorage.setItem('hardMode', hardMode);
-            localStorage.setItem('aiMode', aiMode);
             
             if (musicEnabled) {
                 elements.bgMusic.play().catch(e => console.log("Audio play blocked:", e));
@@ -1668,13 +1620,6 @@
 
         function showMessage(msg) {
             showTyping(false);
-            
-            // Add warning if in offline mode
-            if (!gameState.apiConnected && gameState.aiMode) {
-                msg += `<p style="color: #e74c3c; font-size: 0.8em; margin-top: 10px;">
-                    <i class="fas fa-exclamation-triangle"></i> Mode offline aktif - menggunakan respon lokal
-                </p>`;
-            }
             
             elements.messageArea.innerHTML = `<p>${msg}</p>`;
             elements.messageArea.scrollTop = elements.messageArea.scrollHeight;
@@ -1834,12 +1779,7 @@
         }
 
         function updateUIMode() {
-            // Update AI character appearance based on connection status
-            if (gameState.apiConnected) {
-                elements.aiCharacter.style.filter = "none";
-            } else {
-                elements.aiCharacter.style.filter = "grayscale(50%)";
-            }
+            elements.aiCharacter.style.filter = "grayscale(50%)";
         }
 
         function updateStatsDisplay() {
@@ -1860,21 +1800,17 @@
         function switchTab(tabName) {
             playSound('click');
             
-            // Hide all sections
             document.querySelectorAll('.main-content').forEach(section => {
                 section.classList.remove('active');
             });
             
-            // Deactivate all nav buttons
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
             
-            // Show selected section and activate button
             document.getElementById(`${tabName}-section`).classList.add('active');
             document.getElementById(`${tabName}-btn`).classList.add('active');
             
-            // Update stats when switching to stats tab
             if (tabName === 'stats') {
                 updateStatsDisplay();
             }
