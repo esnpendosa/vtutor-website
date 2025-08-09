@@ -937,6 +937,13 @@
                     <span class="slider"></span>
                 </label>
             </div>
+            <div class="setting-item">
+                <div class="setting-label">Mode AI</div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="ai-mode-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
         </div>
         <div class="settings-footer">
             <button class="settings-btn" id="save-settings">Simpan</button>
@@ -1040,6 +1047,7 @@
                     <li>Efek suara dan musik yang menyenangkan</li>
                     <li>Fitur petunjuk ketika kesulitan</li>
                     <li>Animasi dan visual yang menarik</li>
+                    <li>Dukungan AI canggih untuk interaksi lebih natural</li>
                 </ul>
                 
                 <p>Cara bermain:</p>
@@ -1117,7 +1125,11 @@
             gamesWon: 0,
             winStreak: 0,
             apiConnected: false,
-            lastGuess: null
+            lastGuess: null,
+            aiMode: true,
+            apiKey: "sk-1234567890", // Ganti dengan API key yang valid
+            apiEndpoint: "https://api.openai.com/v1/chat/completions",
+            proxyUrl: "" // Tidak menggunakan proxy untuk demo
         };
 
         // Menggunakan API lokal sebagai fallback
@@ -1228,6 +1240,7 @@
             musicToggle: document.getElementById('music-toggle'),
             soundEffectsToggle: document.getElementById('sound-effects-toggle'),
             hardModeToggle: document.getElementById('hard-mode-toggle'),
+            aiModeToggle: document.getElementById('ai-mode-toggle'),
             
             // Other elements
             loadingOverlay: document.getElementById('loading-overlay'),
@@ -1250,10 +1263,12 @@
             
             // Generate secret number and show greeting
             generateSecretNumber();
-            const maxNumber = gameState.hardMode ? 200 : 100;
+            
+            // Show greeting message
             const greeting = getRandomResponse('greetings');
             showMessage(greeting);
             speak(greeting);
+            
             updateUIMode();
             updateStatsDisplay();
             
@@ -1267,6 +1282,35 @@
                 synth.onvoiceschanged = loadVoices;
             }
             loadVoices();
+        }
+
+        function getRandomResponse(type) {
+            const responses = LOCAL_API_RESPONSES[type];
+            if (!responses) return "";
+            
+            // Replace placeholders for hint responses
+            if (type === 'hint') {
+                const maxNumber = gameState.hardMode ? 200 : 100;
+                const midPoint = Math.floor(maxNumber / 2);
+                const low = Math.max(1, gameState.lastGuess ? gameState.lastGuess + 1 : 1);
+                const high = Math.min(maxNumber, gameState.lastGuess ? gameState.lastGuess - 1 : maxNumber);
+                
+                const hintData = {
+                    low: low,
+                    high: high,
+                    evenOdd: gameState.secretNumber % 2 === 0 ? 'genap' : 'ganjil',
+                    digitCount: gameState.secretNumber.toString().length,
+                    greaterLess: gameState.secretNumber > midPoint ? 'lebih besar' : 'lebih kecil',
+                    midPoint: midPoint,
+                    divisible: gameState.secretNumber % 3 === 0 ? 'habis' : 'tidak habis',
+                    divisor: 3
+                };
+                
+                const template = responses[Math.floor(Math.random() * responses.length)];
+                return template.replace(/{(\w+)}/g, (match, key) => hintData[key] || match);
+            }
+            
+            return responses[Math.floor(Math.random() * responses.length)];
         }
 
         function setupEventListeners() {
@@ -1311,35 +1355,6 @@
             }, { once: true });
         }
 
-        function getRandomResponse(type) {
-            const responses = LOCAL_API_RESPONSES[type];
-            if (!responses) return "";
-            
-            // Replace placeholders for hint responses
-            if (type === 'hint') {
-                const maxNumber = gameState.hardMode ? 200 : 100;
-                const midPoint = Math.floor(maxNumber / 2);
-                const low = Math.max(1, gameState.lastGuess ? gameState.lastGuess + 1 : 1);
-                const high = Math.min(maxNumber, gameState.lastGuess ? gameState.lastGuess - 1 : maxNumber);
-                
-                const hintData = {
-                    low: low,
-                    high: high,
-                    evenOdd: gameState.secretNumber % 2 === 0 ? 'genap' : 'ganjil',
-                    digitCount: gameState.secretNumber.toString().length,
-                    greaterLess: gameState.secretNumber > midPoint ? 'lebih besar' : 'lebih kecil',
-                    midPoint: midPoint,
-                    divisible: gameState.secretNumber % 3 === 0 ? 'habis' : 'tidak habis',
-                    divisor: 3
-                };
-                
-                const template = responses[Math.floor(Math.random() * responses.length)];
-                return template.replace(/{(\w+)}/g, (match, key) => hintData[key] || match);
-            }
-            
-            return responses[Math.floor(Math.random() * responses.length)];
-        }
-
         function loadGameState() {
             if (localStorage.getItem('playerName')) {
                 gameState.playerName = localStorage.getItem('playerName');
@@ -1365,6 +1380,10 @@
                 gameState.hardMode = localStorage.getItem('hardMode') === 'true';
             }
             
+            if (localStorage.getItem('aiMode') !== null) {
+                gameState.aiMode = localStorage.getItem('aiMode') === 'true';
+            }
+            
             if (localStorage.getItem('gamesPlayed')) {
                 gameState.gamesPlayed = parseInt(localStorage.getItem('gamesPlayed'));
             }
@@ -1384,6 +1403,7 @@
             elements.musicToggle.checked = gameState.musicEnabled;
             elements.soundEffectsToggle.checked = gameState.soundEffectsEnabled;
             elements.hardModeToggle.checked = gameState.hardMode;
+            elements.aiModeToggle.checked = gameState.aiMode;
             
             // Initialize music if enabled
             if (gameState.musicEnabled) {
@@ -1416,16 +1436,18 @@
             const maxNumber = gameState.hardMode ? 200 : 100;
             
             if (isNaN(userGuess)) {
-                showMessage("Masukkan angka yang valid!");
-                speak("Itu bukan angka yang valid. Coba lagi!");
+                const msg = "Masukkan angka yang valid!";
+                showMessage(msg);
+                speak(msg);
                 shakeInput();
                 playSound('lose');
                 return;
             }
             
             if (userGuess < 1 || userGuess > maxNumber) {
-                showMessage(`Angka harus antara 1-${maxNumber}!`);
-                speak(`Angkanya harus antara 1 sampai ${maxNumber}!`);
+                const msg = `Angka harus antara 1-${maxNumber}!`;
+                showMessage(msg);
+                speak(msg);
                 shakeInput();
                 playSound('lose');
                 return;
@@ -1459,8 +1481,8 @@
             const winMessage = `🎉 <b>Tebakanmu benar ${gameState.playerName}!</b><br>Angkanya adalah ${gameState.secretNumber}.<br>Kamu menebak dalam ${gameState.attempts} percobaan.`;
             showMessage(winMessage);
             
-            const localWinMsg = getRandomResponse('win');
-            speak(localWinMsg);
+            const aiWinMsg = getRandomResponse('win');
+            speak(aiWinMsg);
             
             gameState.gameActive = false;
             elements.guessBtn.disabled = true;
@@ -1527,12 +1549,13 @@
             showTyping(true);
             animateAI('thinking');
             
-            setTimeout(() => {
-                const hint = getRandomResponse('hint');
-                showMessage(`<b>Petunjuk Cici:</b> ${hint}`);
-                speak(hint);
+            try {
+                const localHint = getRandomResponse('hint');
+                showMessage(`<b>Petunjuk Cici:</b> ${localHint}`);
+                speak(localHint);
+            } finally {
                 showTyping(false);
-            }, 1000);
+            }
         }
 
         function startNewGame() {
@@ -1540,7 +1563,7 @@
             generateSecretNumber();
             
             const maxNumber = gameState.hardMode ? 200 : 100;
-            const newGameMsg = `Aku sudah memilih angka baru antara 1-${maxNumber}. Ayo tebak lagi ${gameState.playerName}!`;
+            const newGameMsg = getRandomResponse('greetings');
             
             showMessage(newGameMsg);
             speak(newGameMsg);
@@ -1561,6 +1584,7 @@
                 elements.musicToggle.checked = gameState.musicEnabled;
                 elements.soundEffectsToggle.checked = gameState.soundEffectsEnabled;
                 elements.hardModeToggle.checked = gameState.hardMode;
+                elements.aiModeToggle.checked = gameState.aiMode;
             }
         }
 
@@ -1571,16 +1595,19 @@
             const musicEnabled = elements.musicToggle.checked;
             const soundEffectsEnabled = elements.soundEffectsToggle.checked;
             const hardMode = elements.hardModeToggle.checked;
+            const aiMode = elements.aiModeToggle.checked;
             
             gameState.playerName = newName;
             gameState.musicEnabled = musicEnabled;
             gameState.soundEffectsEnabled = soundEffectsEnabled;
             gameState.hardMode = hardMode;
+            gameState.aiMode = aiMode;
             
             localStorage.setItem('playerName', newName);
             localStorage.setItem('musicEnabled', musicEnabled);
             localStorage.setItem('soundEffectsEnabled', soundEffectsEnabled);
             localStorage.setItem('hardMode', hardMode);
+            localStorage.setItem('aiMode', aiMode);
             
             if (musicEnabled) {
                 elements.bgMusic.play().catch(e => console.log("Audio play blocked:", e));
@@ -1611,7 +1638,7 @@
             }
         }
 
-        async function addAssistantMessage(message, sender) {
+        function addAssistantMessage(message, sender) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `assistant-message ${sender}-message`;
             messageDiv.textContent = message;
@@ -1620,12 +1647,13 @@
             
             if (sender === 'user') {
                 showTyping(true);
-                setTimeout(() => {
+                try {
                     const response = getRandomResponse('assistant');
                     addAssistantMessage(response, 'bot');
                     speak(response);
+                } finally {
                     showTyping(false);
-                }, 1500);
+                }
             }
         }
 
@@ -1641,10 +1669,12 @@
         function showMessage(msg) {
             showTyping(false);
             
-            // Add warning about offline mode
-            msg += `<p style="color: #e74c3c; font-size: 0.8em; margin-top: 10px;">
-                <i class="fas fa-exclamation-triangle"></i> Mode offline aktif - menggunakan respon lokal
-            </p>`;
+            // Add warning if in offline mode
+            if (!gameState.apiConnected && gameState.aiMode) {
+                msg += `<p style="color: #e74c3c; font-size: 0.8em; margin-top: 10px;">
+                    <i class="fas fa-exclamation-triangle"></i> Mode offline aktif - menggunakan respon lokal
+                </p>`;
+            }
             
             elements.messageArea.innerHTML = `<p>${msg}</p>`;
             elements.messageArea.scrollTop = elements.messageArea.scrollHeight;
@@ -1804,13 +1834,12 @@
         }
 
         function updateUIMode() {
-            // Update API status to show we're in offline mode
-            elements.apiStatus.classList.remove("connecting");
-            elements.apiStatus.classList.add("disconnected");
-            elements.apiStatus.innerHTML = '<div class="api-status-dot"></div><span>Mode Offline</span>';
-            
-            // Update AI character appearance
-            elements.aiCharacter.style.filter = "grayscale(50%)";
+            // Update AI character appearance based on connection status
+            if (gameState.apiConnected) {
+                elements.aiCharacter.style.filter = "none";
+            } else {
+                elements.aiCharacter.style.filter = "grayscale(50%)";
+            }
         }
 
         function updateStatsDisplay() {
