@@ -896,13 +896,13 @@
         <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
     </audio>
     <audio id="win-sound">
-        <source src="https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3" type="audio/mpeg">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2015/2015-preview.mp3" type="audio/mpeg">
     </audio>
     <audio id="lose-sound">
-        <source src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.mp3" type="audio/mpeg">
+        <source src="https://assets.mixkit.co/active_storage/sfx/213/213-preview.mp3" type="audio/mpeg">
     </audio>
     <audio id="click-sound">
-        <source src="https://assets.mixkit.co/sfx/preview/mixkit-quick-jump-arcade-game-239.mp3" type="audio/mpeg">
+        <source src="https://assets.mixkit.co/active_storage/sfx/239/239-preview.mp3" type="audio/mpeg">
     </audio>
 
     <!-- Settings Panel -->
@@ -1315,7 +1315,9 @@
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${gameState.openRouterKey}`,
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': 'https://esnpendosa.github.io/vtutor-website/',
+                        'X-Title': 'VTutor Website'
                     },
                     body: JSON.stringify({
                         model: "openchat/openchat-7b:free",
